@@ -123,8 +123,8 @@ training_model = Model([encoder_inputs, decoder_inputs], decoder_outputs)  # Com
 # print(training_model.summary())
 # plot_model(training_model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
-# training_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'],
-#                        sample_weight_mode='temporal')  # Training
+training_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'],
+                       sample_weight_mode='temporal')  # Training
 # history1 = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data, batch_size=batch_size,
 #                               epochs=epochs, validation_split=0.2)
 # training_model.save('training_model.h5')
@@ -192,7 +192,7 @@ def decode_response(test_input):
     states_value = encoder_model.predict(test_input)
 
     # Generating empty target sequence of length 1
-    target_seq = np.zeros((1, 1, num_decoder_tokens))
+    target_seq = numpy.zeros((1, 1, num_decoder_tokens))
 
     # Setting the first token of target sequence with the start token
     target_seq[0, 0, target_features_dict['']] = 1.
@@ -206,7 +206,7 @@ def decode_response(test_input):
         output_tokens, hidden_state, cell_state = decoder_model.predict([target_seq] + states_value)
 
         # Choosing the one with highest probability
-        sampled_token_index = np.argmax(output_tokens[0, -1, :])
+        sampled_token_index = numpy.argmax(output_tokens[0, -1, :])
         sampled_token = reverse_target_features_dict[sampled_token_index]
         decoded_sentence += " " + sampled_token
 
@@ -215,11 +215,62 @@ def decode_response(test_input):
             stop_condition = True
 
         # Update the target sequence
-        target_seq = np.zeros((1, 1, num_decoder_tokens))
+        target_seq = numpy.zeros((1, 1, num_decoder_tokens))
         target_seq[0, 0, sampled_token_index] = 1.
 
         # Update states
         states_value = [hidden_state, cell_state]
     return decoded_sentence
+
+
+class ChatBot:
+    negative_responses = ("no", "nope", "nah", "naw", "not a chance", "sorry")
+    exit_commands = ("quit", "pause", "exit", "goodbye", "bye", "later", "stop")
+
+    # Method to start the conversation
+    def start_chat(self):
+        user_response = input("Hi, I'm a chatbot trained on random dialogs. AMA!\n")
+
+        if user_response in self.negative_responses:
+            print("Ok, have a great day!")
+            return
+        self.chat(user_response)
+
+    # Method to handle the conversation
+    def chat(self, reply):
+        while not self.make_exit(reply):
+            reply = input(self.generate_response(reply) + "\n")
+
+    # Method to convert user input into a matrix
+    def string_to_matrix(self, user_input):
+        tokens = re.findall(r"[\w']+|[^\s\w]", user_input)
+        user_input_matrix = numpy.zeros(
+            (1, max_encoder_seq_length, num_encoder_tokens),
+            dtype='float32')
+        for timestep, token in enumerate(tokens):
+            if token in input_features_dict:
+                user_input_matrix[0, timestep, input_features_dict[token]] = 1.
+        return user_input_matrix
+
+    # Method that will create a response using seq2seq model we built
+    def generate_response(self, user_input):
+        input_matrix = self.string_to_matrix(user_input)
+        chatbot_response = decode_response(input_matrix)
+        # Remove  and  tokens from chatbot_response
+        chatbot_response = chatbot_response.replace("", '')
+        chatbot_response = chatbot_response.replace("", '')
+        return chatbot_response
+
+    # Method to check for exit commands
+    def make_exit(self, reply):
+        for exit_command in self.exit_commands:
+            if exit_command in reply:
+                print("Ok, have a great day!")
+                return True
+        return False
+
+
+chatbot = ChatBot()
+chatbot.start_chat()
 
 
