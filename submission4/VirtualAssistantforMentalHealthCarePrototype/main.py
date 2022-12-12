@@ -5,6 +5,7 @@ import numpy
 from tensorflow import keras
 from keras.layers import Input, LSTM, Dense
 from keras.models import Model
+from keras.utils.vis_utils import plot_model
 
 pandas.set_option("mode.chained_assignment", None)
 
@@ -100,7 +101,7 @@ for line, (input_doc, target_doc) in enumerate(zip(input_docs, target_docs)):
 
 dimensionality = 256  # Dimensionality
 batch_size = 10  # The batch size and number of epochs
-epochs = 500
+epochs = 2
 
 # Encoder
 encoder_inputs = Input(shape=(None, num_encoder_tokens))
@@ -117,4 +118,11 @@ decoder_outputs = decoder_dense(decoder_outputs)
 
 training_model = Model([encoder_inputs, decoder_inputs], decoder_outputs)  # Compiling
 
-print(training_model.summary())
+# print(training_model.summary())
+# plot_model(training_model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+
+training_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'],
+                       sample_weight_mode='temporal')  # Training
+history1 = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data, batch_size=batch_size,
+                              epochs=epochs, validation_split=0.2)
+training_model.save('training_model.h5')
