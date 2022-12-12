@@ -6,6 +6,8 @@ from tensorflow import keras
 from keras.layers import Input, LSTM, Dense
 from keras.models import Model
 from keras.utils.vis_utils import plot_model
+import matplotlib.pyplot as plt
+from keras.models import load_model
 
 pandas.set_option("mode.chained_assignment", None)
 
@@ -121,8 +123,103 @@ training_model = Model([encoder_inputs, decoder_inputs], decoder_outputs)  # Com
 # print(training_model.summary())
 # plot_model(training_model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
-training_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'],
-                       sample_weight_mode='temporal')  # Training
-history1 = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data, batch_size=batch_size,
-                              epochs=epochs, validation_split=0.2)
-training_model.save('training_model.h5')
+# training_model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'],
+#                        sample_weight_mode='temporal')  # Training
+# history1 = training_model.fit([encoder_input_data, decoder_input_data], decoder_target_data, batch_size=batch_size,
+#                               epochs=epochs, validation_split=0.2)
+# training_model.save('training_model.h5')
+
+# acc = history1.history['accuracy']
+# val_acc = history1.history['val_accuracy']
+# loss = history1.history['loss']
+# val_loss = history1.history['val_loss']
+#
+# plt.figure(figsize=(16, 8))
+# plt.subplot(1, 2, 1)
+# plt.plot(acc, label='Training Accuracy')
+# plt.plot(val_acc, label='Validation Accuracy')
+# plt.legend(loc='lower right')
+# plt.title('Training and Validation Accuracy')
+# plt.xlabel("epochs")
+# plt.ylabel("accuracy")
+#
+# plt.subplot(1, 2, 2)
+# plt.plot(loss, label='Training Loss')
+# plt.plot(val_loss, label='Validation Loss')
+# plt.legend(loc='upper right')
+# plt.title('Training and Validation Loss')
+# plt.xlabel("epochs")
+# plt.ylabel("loss")
+# plt.show()
+
+
+training_model = load_model('training_model.h5')
+encoder_inputs = training_model.input[0]
+encoder_outputs, state_h_enc, state_c_enc = training_model.layers[2].output
+encoder_states = [state_h_enc, state_c_enc]
+encoder_model = Model(encoder_inputs, encoder_states)
+
+latent_dim = 256
+decoder_state_input_hidden = Input(shape=(latent_dim,))
+decoder_state_input_cell = Input(shape=(latent_dim,))
+decoder_states_inputs = [decoder_state_input_hidden, decoder_state_input_cell]
+
+
+decoder_outputs, state_hidden, state_cell = decoder_lstm(decoder_inputs, initial_state=decoder_states_inputs)
+decoder_states = [state_hidden, state_cell]
+decoder_outputs = decoder_dense(decoder_outputs)
+
+decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
+
+training_model = load_model('training_model.h5')
+encoder_inputs = training_model.input[0]
+encoder_outputs, state_h_enc, state_c_enc = training_model.layers[2].output
+encoder_states = [state_h_enc, state_c_enc]
+encoder_model = Model(encoder_inputs, encoder_states)
+
+latent_dim = 256
+decoder_state_input_hidden = Input(shape=(latent_dim,))
+decoder_state_input_cell = Input(shape=(latent_dim,))
+decoder_states_inputs = [decoder_state_input_hidden, decoder_state_input_cell]
+decoder_outputs, state_hidden, state_cell = decoder_lstm(decoder_inputs, initial_state=decoder_states_inputs)
+decoder_states = [state_hidden, state_cell]
+decoder_outputs = decoder_dense(decoder_outputs)
+decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
+
+
+def decode_response(test_input):
+    # Getting the output states to pass into the decoder
+    states_value = encoder_model.predict(test_input)
+
+    # Generating empty target sequence of length 1
+    target_seq = np.zeros((1, 1, num_decoder_tokens))
+
+    # Setting the first token of target sequence with the start token
+    target_seq[0, 0, target_features_dict['']] = 1.
+
+    # A variable to store our response word by word
+    decoded_sentence = ''
+
+    stop_condition = False
+    while not stop_condition:
+        # Predicting output tokens with probabilities and states
+        output_tokens, hidden_state, cell_state = decoder_model.predict([target_seq] + states_value)
+
+        # Choosing the one with highest probability
+        sampled_token_index = np.argmax(output_tokens[0, -1, :])
+        sampled_token = reverse_target_features_dict[sampled_token_index]
+        decoded_sentence += " " + sampled_token
+
+        # Stop if hit max length or found the stop token
+        if (sampled_token == '' or len(decoded_sentence) > max_decoder_seq_length):
+            stop_condition = True
+
+        # Update the target sequence
+        target_seq = np.zeros((1, 1, num_decoder_tokens))
+        target_seq[0, 0, sampled_token_index] = 1.
+
+        # Update states
+        states_value = [hidden_state, cell_state]
+    return decoded_sentence
+
+
