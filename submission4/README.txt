@@ -4,5 +4,4 @@ Conference Login Link for Submitted Paper:
 Conference Name: 
 Conference URL: 
 Conference Submission Date: 
-Video Presentation: https://youtu.be/-L5rpTs-BCU
 
